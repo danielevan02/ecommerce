@@ -1,9 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import NextAuth, { NextAuthConfig } from 'next-auth'
+import NextAuth, { type NextAuthConfig } from 'next-auth'
 import { PrismaAdapter } from '@auth/prisma-adapter'
 import { prisma } from '@/db/prisma'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { compareSync } from 'bcrypt-ts-edge'
+import { cookies } from 'next/headers'
+import { NextResponse } from 'next/server'
 
 export const config: NextAuthConfig = {
   pages: {
@@ -49,12 +51,47 @@ export const config: NextAuthConfig = {
   callbacks: {
     async session({session, user, token, trigger}: any) {
       session.user.id = token.sub
+      session.user.role = token.role
+      session.user.name = token.name
 
       if(trigger === 'update'){
         session.user.name = user.name
       }
       return session
     },
+    async jwt({token, user}: any){
+      if(user){
+        token.role = user.role
+        token.id = user.id
+        if(user.name === "NO_NAME"){
+          token.name = user.email!.split('@')[0]
+          await prisma.user.update({
+            where: {
+              id: user.id
+            },
+            data: {
+              name: token.name
+            }
+          })
+        }
+      }
+      return token
+    },
+    authorized({request}){
+      if(!request.cookies.get('sessionCartId')){
+        const sessionCartId = crypto.randomUUID()
+        const newRequestHeaders = new Headers(request.headers)
+        const response = NextResponse.next({
+          request: {
+            headers: newRequestHeaders
+          }
+        })
+        response.cookies.set('sessionCartId', sessionCartId)
+        return response
+      } else {
+        return true
+      }
+    }
   },
 } satisfies NextAuthConfig
 
