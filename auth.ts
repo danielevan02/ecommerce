@@ -4,8 +4,8 @@ import { PrismaAdapter } from '@auth/prisma-adapter'
 import { prisma } from '@/db/prisma'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { compareSync } from 'bcrypt-ts-edge'
-import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 
 export const config: NextAuthConfig = {
   pages: {
@@ -59,7 +59,7 @@ export const config: NextAuthConfig = {
       }
       return session
     },
-    async jwt({token, user}: any){
+    async jwt({token, user, trigger}: any){
       if(user){
         token.role = user.role
         token.id = user.id
@@ -74,10 +74,53 @@ export const config: NextAuthConfig = {
             }
           })
         }
+        if(trigger === 'signIn' || trigger === 'signUp') {
+          const cookiesObject = await cookies()
+          const sessionCartId = cookiesObject.get('sessionCartId')?.value
+
+          if(sessionCartId) {
+            const sessionCart = await prisma.cart.findFirst({
+              where: {
+                sessionCartId
+              }
+            })
+
+            if(sessionCart){
+              await prisma.cart.deleteMany({
+                where: {
+                  userId: user.id
+                }
+              })
+              await prisma.cart.update({
+                where: {
+                  id: sessionCart.id
+                },
+                data: {
+                  userId: user.id
+                }
+              })
+            }
+          }
+        }
       }
       return token
     },
-    authorized({request}){
+    authorized({request, auth}){
+      const protectedPaths = [
+        /\/shipping-address/,
+        /\/payment-method/,
+        /\/place-order/,
+        /\/profile/,
+        /\/user\/(.*)/,
+        /\/order\/(.*)/,
+        /\/admin/,
+      ];
+
+      const {pathname} = request.nextUrl;
+
+      if (!auth && protectedPaths.some((p) => p.test(pathname))) {
+        return false;
+      }
       if(!request.cookies.get('sessionCartId')){
         const sessionCartId = crypto.randomUUID()
         const newRequestHeaders = new Headers(request.headers)
