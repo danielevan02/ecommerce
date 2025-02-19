@@ -3,8 +3,6 @@ import { PrismaNeon } from '@prisma/adapter-neon';
 import { PrismaClient } from '@prisma/client';
 import ws from 'ws';
 
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
-
 // Sets up WebSocket connections, which enables Neon to use WebSocket communication.
 neonConfig.webSocketConstructor = ws;
 const connectionString = `${process.env.DATABASE_URL}`;
@@ -17,7 +15,6 @@ const adapter = new PrismaNeon(pool);
 
 // Extends the PrismaClient with a custom result transformer to convert the price and rating fields to strings.
 export const prisma =
-  globalForPrisma.prisma ??
   new PrismaClient({ adapter }).$extends({
     result: {
       product: {
@@ -32,8 +29,65 @@ export const prisma =
           },
         },
       },
+      cart: {
+        itemsPrice: {
+          needs: { itemsPrice: true },
+          compute(cart) {
+            return cart.itemsPrice.toString();
+          },
+        },
+        shippingPrice: {
+          needs: { shippingPrice: true },
+          compute(cart) {
+            return cart.shippingPrice.toString();
+          },
+        },
+        taxPrice: {
+          needs: { taxPrice: true },
+          compute(cart) {
+            return cart.taxPrice.toString();
+          },
+        },
+        totalPrice: {
+          needs: { totalPrice: true },
+          compute(cart) {
+            return cart.totalPrice.toString();
+          },
+        },
+      },
+      order: {
+        itemsPrice: {
+          needs: { itemsPrice: true },
+          compute(cart) {
+            return cart.itemsPrice.toString();
+          },
+        },
+        shippingPrice: {
+          needs: { shippingPrice: true },
+          compute(cart) {
+            return cart.shippingPrice.toString();
+          },
+        },
+        taxPrice: {
+          needs: { taxPrice: true },
+          compute(cart) {
+            return cart.taxPrice.toString();
+          },
+        },
+        totalPrice: {
+          needs: { totalPrice: true },
+          compute(cart) {
+            return cart.totalPrice.toString();
+          },
+        },
+      },
+      orderItem: {
+        price: {
+          compute(cart) {
+            return cart.price.toString();
+          },
+        },
+      },
     },
   });
 
-
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
